@@ -18,7 +18,7 @@ from tqdm import tqdm
 from transformers import (BertConfig, BertForNextSentencePrediction,
                           BertTokenizer)
 
-from preprocess_dataset import get_dd_corpus
+from preprocess_dataset import get_dd_corpus, get_dd_multiref_testset
 from utils import (RankerDataset, dump_config, get_uttr_token, load_model,
                    set_random_seed, write2tensorboard)
 
@@ -51,15 +51,24 @@ def main(args):
             sample = [el[idx] for el in test_dataset.feature]
             ids, masks = [torch.unsqueeze(el, 0).to(device) for el in sample[:2]]
             # 1 for positive and 0 for random
-            label = int(sample[2].numpy())
+            label_list.append(int(sample[2].numpy()))
             prediction = softmax(model(ids, masks)[0]).cpu().numpy()[0]
         assert len(prediction) == 2
-        prediction = prediction[1]
-        prediction_list.append(prediction)
-    accuracy = accuracy_score(label_list, prediction_list)
-    f1 = f1_score(label_list, prediction_list)
+        prediction_list.append(prediction[1])
+        assert len(prediction_list) == len(label_list)
+    discrete_prediction_list = [1 if el >= 0.5 else 0 for el in prediction_list]
+    accuracy = accuracy_score(label_list, discrete_prediction_list)
+    f1 = f1_score(label_list, discrete_prediction_list)
     print("Accuracy: {}".format(accuracy))
     print("f1: {}".format(f1))
+
+    """
+    STEP2. Simple evaluation using Accracy and F1 on DD testset.
+    """
+    multiref_dd_dataset = get_dd_multiref_testset()
+    # TODO
+    # 여러 개의 proper responses에 대한 accuracy 정도를 먼저 봐보자.
+    # 그 다음에는 pos/rand-neg 비율이 1:(n-1) 이랑 n:0인 경우를 봐야 할까?
 
 
 if __name__ == "__main__":
