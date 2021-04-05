@@ -161,3 +161,28 @@ def load_model(model, model_path, epoch, len_tokenizer):
     model.resize_token_embeddings(len_tokenizer)
     model.load_state_dict(torch.load(model_path + f"/epoch-{epoch}.pth"))
     return model
+
+
+def make_random_negative_for_multi_ref(multiref_original, num_neg=30):
+    """multi-candidate(positive)가 있는 데이터셋에 대해, 같은 수의 random-negative response를 찾아서 반환
+
+    Args:
+        multiref_original (List[context(str), List[postiive_utterance(str)]]): get_dd_multiref_testset()에서 반환된 multi-reference candidates
+        num_neg (int, optional): 몇 개의 random response를 담아서 반환할건지.
+    Returns:
+        multiref_original (List[context(str), List[postiive_utterance(str),List[negative_utterance(str)]]):
+
+    """
+    for idx, item in enumerate(multiref_original):
+        context, responses = item
+        sample = random.sample(range(len(multiref_original)), num_neg + 1)
+        if idx in sample:
+            sample.remove(idx)
+        else:
+            sample = sample[:-1]
+        responses = [multiref_original[sample_idx][1] for sample_idx in sample]
+        responses = [el for el1 in responses for el in el1]
+        assert all([isinstance(el, str) for el in responses])
+        negative = random.sample(responses, num_neg)
+        multiref_original[idx].append(negative)
+    return multiref_original

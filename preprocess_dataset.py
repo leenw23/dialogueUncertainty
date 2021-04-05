@@ -83,6 +83,7 @@ def get_dd_multiref_testset(dirname="./data/"):
                 assert turn_idx == len(line) - 1
                 break
             uttr, responses = single_turn["text"], single_turn["responses"]
+            assert len(responses) >= 5
             assert all([isinstance(el, str) for el in responses + [uttr]])
             context.append(uttr)
             pairs.append([UTTR_TOKEN.join(context), responses])

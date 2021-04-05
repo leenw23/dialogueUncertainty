@@ -4,6 +4,7 @@
 를 통해 uncertainty를 measure하는 스크립트 파일.
 """
 import argparse
+import json
 import os
 
 # pip install uncertainty-calibration
@@ -13,6 +14,7 @@ import scipy
 import torch
 import torch.nn as nn
 import transformers
+from scipy.stats import entropy
 from sklearn.metrics import accuracy_score, f1_score
 from tensorboardX import SummaryWriter
 from torch import Tensor
@@ -22,13 +24,17 @@ from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.dataloader import DataLoader
 from tqdm import tqdm
-from transformers import BertConfig, BertForNextSentencePrediction, BertTokenizer
+from transformers import (BertConfig, BertForNextSentencePrediction,
+                          BertTokenizer)
 
 from preprocess_dataset import get_dd_corpus, get_dd_multiref_testset
-from utils import RankerDataset, get_uttr_token, load_model, set_random_seed
+from utils import (RankerDataset, get_uttr_token, load_model,
+                   make_random_negative_for_multi_ref, set_random_seed)
 
 
-def modeling_mcdropout_uncertainty(model, ids, masks, softmax_op, num_forward_pass: int = 10):
+def modeling_mcdropout_uncertainty(
+    model, ids, masks, softmax_op, num_forward_pass: int = 10
+):
     """한 sample에 대한 예측 및 uncertainty value를 반환
 
     Args:
@@ -41,7 +47,9 @@ def modeling_mcdropout_uncertainty(model, ids, masks, softmax_op, num_forward_pa
     prediction_list = []
     for forward_pass in range(num_forward_pass):
         with torch.no_grad():
-            prediction_list.append(float(softmax_op(model(ids, masks)[0]).cpu().numpy()[0][1]))
+            prediction_list.append(
+                float(softmax_op(model(ids, masks)[0]).cpu().numpy()[0][1])
+            )
     return np.mean(prediction_list), np.var(prediction_list)
 
 
@@ -75,7 +83,7 @@ def mcdrop_main(args):
             )
             prediction_list.append(prediction)
             uncertainty_list.append(uncertainty)
-            # 1 for positive and 0 for random
+            # 1 for negative and 0 for random
             label_list.append(int(sample[2].numpy()))
 
         assert len(prediction_list) == len(label_list) == len(uncertainty_list)
@@ -90,8 +98,6 @@ def mcdrop_main(args):
 
 def multi_candidate_main(args):
     set_random_seed(42)
-
-    dump_config(args)
     device = torch.device("cuda")
     tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
     UTTR_TOKEN = get_uttr_token()
@@ -107,14 +113,25 @@ def multi_candidate_main(args):
     STEP1. Simple evaluation using Accracy and F1 on DD testset.
     """
     multiref_dd_dataset = get_dd_multiref_testset()
+    multiref_dd_dataset_with_random_negative = make_random_negative_for_multi_ref(
+        multiref_dd_dataset
+    )
 
     prediction_list = []
-    for sample in tqdm(multiref_dd_dataset):
-        context, responses = sample
+    for sample_indx, sample in enumerate(tqdm(multiref_dd_dataset)):
+        context, positive_responses, negative_responses = sample
         assert isinstance(context, str)
-        assert isinstance(responses, list) and all([isinstance(el, str) for el in responses])
+        assert isinstance(positive_responses, list) and all(
+            [isinstance(el, str) for el in positive_responses]
+        )
+        assert isinstance(negative_responses, list) and all(
+            [isinstance(el, str) for el in negative_responses]
+        )
         softmax = torch.nn.Softmax(dim=1)
-        for response in responses:
+        positive_prediction = []
+        negative_prediction = []
+
+        for response in positive_responses:
             input_ids = tokenizer(
                 context,
                 text_pair=response,
@@ -125,14 +142,31 @@ def multi_candidate_main(args):
             )["input_ids"]
             with torch.no_grad():
                 input_ids = input_ids.to(device)
-                prediction = float(softmax(model(input_ids)[0]).cpu().numpy()[0][1])
-                prediction_list.append(prediction)
-    discrete_prediction_list = [int(round(el)) for el in prediction_list]
-    accuracy = accuracy_score(
-        [1 for _ in range(len(discrete_prediction_list))],
-        discrete_prediction_list,
-    )
-    print("Accuracy: {}".format(accuracy))
+
+                positive_prediction.append(
+                    (float(softmax(model(input_ids)[0]).cpu().numpy()[0][1]))
+                )
+        for response in negative_responses:
+            input_ids = tokenizer(
+                context,
+                text_pair=response,
+                max_length=128,
+                padding="max_length",
+                truncation=True,
+                return_tensors="pt",
+            )["input_ids"]
+            with torch.no_grad():
+                input_ids = input_ids.to(device)
+                negative_prediction.append(
+                    (float(softmax(model(input_ids)[0]).cpu().numpy()[0][1]))
+                )
+        # assert len(positive_prediction) == len(negative_prediction)
+        prediction_list.append([positive_prediction, negative_prediction])
+
+    with open("pos_neg_pred_scores.json", "w") as f:
+        for item in prediction_list:
+            json.dump({"positive": item[0], "negative": item[1]}, f)
+            f.write("\n")
 
 
 if __name__ == "__main__":
@@ -150,4 +184,5 @@ if __name__ == "__main__":
     args.model_path = os.path.join(args.exp_path, "model")
     args.board_path = os.path.join(args.exp_path, "board")
     parser.add_argument("--num_forward_pass", type=int, default=10)
-    mcdrop_main(args)
+    # mcdrop_main(args)
+    multi_candidate_main(args)
