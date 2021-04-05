@@ -23,6 +23,7 @@ from torch.nn.modules.loss import CrossEntropyLoss
 from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.dataloader import DataLoader
+import random
 from tqdm import tqdm
 from transformers import BertConfig, BertForNextSentencePrediction, BertTokenizer
 
@@ -36,7 +37,9 @@ from utils import (
 )
 
 
-def modeling_mcdropout_uncertainty(model, ids, masks, softmax_op, num_forward_pass: int = 10):
+def modeling_mcdropout_uncertainty(
+    model, ids, masks, softmax_op, num_forward_pass: int = 10
+):
     """한 sample에 대한 예측 및 uncertainty value를 반환
 
     Args:
@@ -49,7 +52,9 @@ def modeling_mcdropout_uncertainty(model, ids, masks, softmax_op, num_forward_pa
     prediction_list = []
     for forward_pass in range(num_forward_pass):
         with torch.no_grad():
-            prediction_list.append(float(softmax_op(model(ids, masks)[0]).cpu().numpy()[0][1]))
+            prediction_list.append(
+                float(softmax_op(model(ids, masks)[0]).cpu().numpy()[0][1])
+            )
     return np.mean(prediction_list), np.var(prediction_list)
 
 
@@ -169,6 +174,35 @@ def multi_candidate_main(args):
             f.write("\n")
 
 
+def multi_candidate_analysis(fname, candidate_size=5):
+    with open(fname, "r") as f:
+        ls = [json.loads(el) for el in f.readlines()]
+    from scipy.stats import entropy
+
+    entropy_map = {k + 1: [] for k in range(5)}
+    for item in ls:
+        pos_score, neg_score = item["positive"], item["negative"]
+        for k in range(5):
+            k += 1
+            candidate = random.sample(pos_score, k) + random.sample(
+                neg_score, candidate_size - k
+            )
+            entropy_map[k].append(entropy(candidate))
+    for k, v in entropy_map.items():
+        entropy_map[k] = sum(v) / len(v)
+    from pprint import pprint
+
+    pprint(entropy_map)
+    """
+    candidate_size=5일때, k가 커질수록 (candidate에서 positive의 비율이 증가할수록) entropy 증가 (candidates의 logits이 flat해진다는 뜻일까?)
+    {1: 1.2971332142915273,
+    2: 1.338063237332648,
+    3: 1.3925438246699275,
+    4: 1.4452149285350016,
+    5: 1.4970915741567674}
+    """
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process some integers.")
     parser.add_argument(
@@ -184,5 +218,7 @@ if __name__ == "__main__":
     args.model_path = os.path.join(args.exp_path, "model")
     args.board_path = os.path.join(args.exp_path, "board")
     parser.add_argument("--num_forward_pass", type=int, default=10)
+
     # mcdrop_main(args)
-    multi_candidate_main(args)
+    # multi_candidate_main(args)
+    multi_candidate_analysis(fname="pos_neg_pred_scores.json")
