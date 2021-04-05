@@ -24,17 +24,19 @@ from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.dataloader import DataLoader
 from tqdm import tqdm
-from transformers import (BertConfig, BertForNextSentencePrediction,
-                          BertTokenizer)
+from transformers import BertConfig, BertForNextSentencePrediction, BertTokenizer
 
 from preprocess_dataset import get_dd_corpus, get_dd_multiref_testset
-from utils import (RankerDataset, get_uttr_token, load_model,
-                   make_random_negative_for_multi_ref, set_random_seed)
+from utils import (
+    RankerDataset,
+    get_uttr_token,
+    load_model,
+    make_random_negative_for_multi_ref,
+    set_random_seed,
+)
 
 
-def modeling_mcdropout_uncertainty(
-    model, ids, masks, softmax_op, num_forward_pass: int = 10
-):
+def modeling_mcdropout_uncertainty(model, ids, masks, softmax_op, num_forward_pass: int = 10):
     """한 sample에 대한 예측 및 uncertainty value를 반환
 
     Args:
@@ -47,9 +49,7 @@ def modeling_mcdropout_uncertainty(
     prediction_list = []
     for forward_pass in range(num_forward_pass):
         with torch.no_grad():
-            prediction_list.append(
-                float(softmax_op(model(ids, masks)[0]).cpu().numpy()[0][1])
-            )
+            prediction_list.append(float(softmax_op(model(ids, masks)[0]).cpu().numpy()[0][1]))
     return np.mean(prediction_list), np.var(prediction_list)
 
 
@@ -110,7 +110,7 @@ def multi_candidate_main(args):
     model.to(device)
 
     """
-    STEP1. Simple evaluation using Accracy and F1 on DD testset.
+    multi-positive response랑 random negative response에 예측만 해둔 다음, 그 결과를 json 파일에 저장
     """
     multiref_dd_dataset = get_dd_multiref_testset()
     multiref_dd_dataset_with_random_negative = make_random_negative_for_multi_ref(
