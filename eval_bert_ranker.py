@@ -29,7 +29,6 @@ from utils import (
     write2tensorboard,
 )
 
-
 def main(args):
     set_random_seed(42)
 

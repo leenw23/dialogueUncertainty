@@ -29,7 +29,7 @@ class RankerDataset(torch.utils.data.Dataset):
         self.tokenizer = tokenizer
         self.max_seq_len = max_seq_len
         self.uttr_token = uttr_token
-        assert setname in ["train", "dev", "test"]
+        # assert setname in ["train", "dev", "test"]
         self.triplet_fname = "./data/triplet/triplet_{}.pck".format(setname)
         self.triplet_dataset = self._get_triplet_dataset(raw_dataset)
         self.tensor_fname = "./data/triplet/tensor_{}.pck".format(setname)
@@ -71,9 +71,9 @@ class RankerDataset(torch.utils.data.Dataset):
             ids.extend(positive_sample["input_ids"])
             masks.extend(positive_sample["attention_mask"])
             labels.append(1)
-            ids.extend(negative_sample["input_ids"])
-            masks.extend(negative_sample["attention_mask"])
-            labels.append(0)
+            # ids.extend(negative_sample["input_ids"])
+            # masks.extend(negative_sample["attention_mask"])
+            # labels.append(0)
         assert len(ids) == len(masks) == len(labels)
         data = torch.stack(ids), torch.stack(masks), torch.tensor(labels)
         with open(self.tensor_fname, "wb") as f:
@@ -111,7 +111,13 @@ class RankerDataset(torch.utils.data.Dataset):
         all_responses = []
         for idx, conv in enumerate(tqdm(raw_dataset)):
             slided_conversation = self._slide_conversation(conv)
-            dataset.extend(slided_conversation)
+            
+            # using subset
+            dataset.extend([slided_conversation[-1]])
+            
+            ## origin
+            # dataset.extend(slided_conversation)
+            
             all_responses.extend([el[1] for el in slided_conversation])
         for idx, el in enumerate(dataset):
             while True:

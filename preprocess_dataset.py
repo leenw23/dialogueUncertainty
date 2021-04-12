@@ -44,10 +44,10 @@ def _read_txt_files(fname: str):
 
 
 def get_dd_corpus(setname):
-    assert setname in ["train", "validation", "test"]
+    assert setname in ["train", "validation", "test", "subset"]
     fname = "./data/ijcnlp_dailydialog/{}/dialogues_{}.txt".format(setname, setname)
     assert os.path.exists(fname)
-    with open(fname, "r") as f:
+    with open(fname, "r", encoding='UTF8') as f:
         ls = [el.strip() for el in f.readlines()]
         for idx, line in enumerate(ls):
             line = [
