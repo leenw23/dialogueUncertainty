@@ -18,7 +18,12 @@ from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.dataloader import DataLoader
 from tqdm import tqdm
-from transformers import BertConfig, BertForNextSentencePrediction, BertModel, BertTokenizer
+from transformers import (
+    BertConfig,
+    BertForNextSentencePrediction,
+    BertModel,
+    BertTokenizer,
+)
 
 from preprocess_dataset import get_dd_corpus
 from utils import (
@@ -49,20 +54,20 @@ def main(args):
     """
     STEP1. Simple evaluation using Accracy and F1 on DD trainset.
     """
-
     raw_dd_train = get_dd_corpus("train")
     train_dataset = RankerDataset(raw_dd_train, tokenizer, "train", 128, UTTR_TOKEN)
     softmax = torch.nn.Softmax(dim=1)
 
     saver = []
-    length_count = []
     for idx in tqdm(range(len(train_dataset))):
         with torch.no_grad():
             sample = [el[idx] for el in train_dataset.feature]
             ids, masks = [torch.unsqueeze(el, 0).to(device) for el in sample[:2]]
             # 1 for positive and 0 for random
             if int(sample[2].numpy()) != 1:
+
                 continue
+
             output = model(ids, masks, output_attentions=True, return_dict=True)
             attention_output = [el.cpu().numpy() for el in output["attentions"]]
             attention_output = sum([sum(sum(el[0])) for el in attention_output])
@@ -72,13 +77,12 @@ def main(args):
         final_item = {
             "prediction": prediction[1],
             "attention": attention_output,
-            "feature": [int(el) for el in train_dataset.feature[0][idx].numpy() if el != 0],
+            "feature": [
+                int(el) for el in train_dataset.feature[0][idx].numpy() if el != 0
+            ],
         }
         saver.append(final_item)
-        status = draw_and_save(tokenizer, final_item, args.attention_img_fname.format(idx))
-        length_count.append(status)
-        if status:
-            print(sum(status) / len(status))
+        # draw_and_save(tokenizer, final_item, args.attention_img_fname.format(idx))
 
     import pickle
 

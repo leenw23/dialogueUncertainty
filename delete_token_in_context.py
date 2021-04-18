@@ -21,12 +21,17 @@ from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.dataloader import DataLoader
 from tqdm import tqdm
-from transformers import (BertConfig, BertForNextSentencePrediction,
-                          BertTokenizer)
+from transformers import BertConfig, BertForNextSentencePrediction, BertTokenizer
 
 from preprocess_dataset import get_dd_corpus, get_dd_multiref_testset
-from utils import (RankerDataset, dump_config, get_uttr_token, load_model,
-                   set_random_seed, write2tensorboard)
+from utils import (
+    RankerDataset,
+    dump_config,
+    get_uttr_token,
+    load_model,
+    set_random_seed,
+    write2tensorboard,
+)
 
 ascii_uppercase = list(ascii_uppercase)
 column_titles = (
@@ -43,7 +48,7 @@ def visualize():
     wb = Workbook()
     ws = wb.active
 
-    with open("saver.jsonl", "r") as f:
+    with open("saver_unk.jsonl", "r") as f:
         ls = [json.loads(el) for el in f.readlines()]
     for idx, item in enumerate(ls):
         context, response, original, chnaged = (
@@ -74,7 +79,7 @@ def visualize():
         ws["A" + str(idx * 5 + 4)] = "Original"
         ws["A" + str(idx * 5 + 4)].font = Font(bold=True)
         ws["B" + str(idx * 5 + 4)] = round(original, 2)
-    wb.save("masking.xlsx")
+    wb.save("unking.xlsx")
 
 
 def main(args):
@@ -92,16 +97,18 @@ def main(args):
     model = load_model(model, args.model_path, 0, len(tokenizer))
     model.to(device)
 
-    raw_dd_test = get_dd_corpus("test")
-    test_dataset = RankerDataset(raw_dd_test, tokenizer, "test", 128, UTTR_TOKEN)
+    raw_dd_train = get_dd_corpus("train")
+    train_dataset = RankerDataset(raw_dd_train, tokenizer, "train", 128, UTTR_TOKEN)
     softmax = torch.nn.Softmax(dim=1)
 
     saver = []
 
-    for idx in tqdm(range(len(test_dataset))):
+    for idx in tqdm(range(len(train_dataset))):
+        if idx == 1000:
+            break
         changed_prediction_list = []
         with torch.no_grad():
-            sample = [el[idx] for el in test_dataset.feature]
+            sample = [el[idx] for el in train_dataset.feature]
             # 1 for positive and 0 for random
             label = int(sample[2].numpy())
             if label == 0:
@@ -116,7 +123,7 @@ def main(args):
                     assert token_index == 0
                     continue
                 changed_ids = torch.tensor(ids)
-                changed_ids[0][token_index] = tokenizer.mask_token_id
+                changed_ids[0][token_index] = tokenizer.unk_token_id  # mask_token_id
                 changed_prediction = (
                     softmax(model(changed_ids, masks)[0]).cpu().numpy()[0][1]
                 )
@@ -141,7 +148,7 @@ def main(args):
                 "changed_score": changed_prediction_list,
             }
         )
-    with open("saver.jsonl", "w") as f:
+    with open("saver_unk.jsonl", "w") as f:
         for l in saver:
             f.write(json.dumps(l))
             f.write("\n")
@@ -161,5 +168,5 @@ if __name__ == "__main__":
     args.exp_path = os.path.join(args.log_path, args.exp_name)
     args.model_path = os.path.join(args.exp_path, "model")
     args.board_path = os.path.join(args.exp_path, "board")
-    # main(args)
+    main(args)
     visualize()
