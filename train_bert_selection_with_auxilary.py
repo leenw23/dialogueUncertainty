@@ -109,6 +109,7 @@ def main(args):
         model.parameters(),
         lr=args.lr,
     )
+    bce_metric = nn.BCELoss()
     writer = SummaryWriter(args.board_path)
 
     save_model(model, "begin", args.model_path)
@@ -150,7 +151,13 @@ def main(args):
                     torch.ones(bs).to(device), original_auxilary_output, corrupted_auxilary_output
                 )
             elif args.corrupt_loss_type == "crossentropy":
-                pass
+                label = torch.tensor(
+                    [1.0 for _ in range(len(original_auxilary_output))]
+                    + [0.0 for _ in range(len(original_auxilary_output))]
+                )
+                corrupt_loss = bce_metric(
+                    torch.cat([original_auxilary_output, corrupted_auxilary_output]), label
+                )
 
             # Usual training
             ids_list, mask_list = ids_list.to(device), mask_list.to(device)

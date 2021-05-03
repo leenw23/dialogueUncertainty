@@ -55,6 +55,7 @@ def main(args):
     raw_dd_train, raw_dd_dev = get_dd_corpus("train"), get_dd_corpus("validation")
     raw_dd_train = get_dd_corpus("train")
     raw_dd_dev = get_dd_corpus("validation")
+
     print("Load begin!")
     if args.uw_unk_ratio != 0.0:
         with open(args.uw_unk_dump_fname.format(args.uw_unk_ratio, "train"), "rb") as f:
