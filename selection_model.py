@@ -19,3 +19,26 @@ class BertSelect(nn.Module):
         output = self.bert(ids, mask, return_dict=True, output_attentions=True)
         prediction = self.linear(output["last_hidden_state"][:, 0])
         return prediction, output["attentions"]
+
+
+class BertSelectAuxilary(nn.Module):
+    def __init__(self, bert: BertModel):
+        super(BertSelectAuxilary, self).__init__()
+        self.bert = bert
+        self.linear = torch.nn.Linear(768, 1, bias=False)
+        self.auxlinear = torch.sigmoid(torch.nn.Linear(768, 1, bias=False))
+
+    def forward(self, ids, mask):
+        output, _ = self.bert(ids, mask, return_dict=False)
+        cls_ = output[:, 0]
+        return self.linear(cls_)
+
+    def aux_forward(self, ids, mask):
+        output, _ = self.bert(ids, mask, return_dict=False)
+        cls_ = output[:, 0]
+        return self.auxlinear(cls_)
+
+    def get_attention(self, ids, mask):
+        output = self.bert(ids, mask, return_dict=True, output_attentions=True)
+        prediction = self.linear(output["last_hidden_state"][:, 0])
+        return prediction, output["attentions"]

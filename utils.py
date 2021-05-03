@@ -8,6 +8,71 @@ import torch
 from tqdm import tqdm
 
 
+def corrupt_context_wordlevel_for_auxilary(
+    ids,
+    mask,
+    use_attn: bool,
+    corrupt_ratio: float,
+    sep_id,
+    skip_token_ids,
+    device=None,
+    model=None,
+):
+    numpy_ids = np.array(ids)
+    numpy_mask = np.array(mask)
+
+    bs, max_len = numpy_ids.shape
+    context_end_indices = np.where(numpy_ids == sep_id)[1].reshape(bs, 2)[:, 0]
+
+    corrupted_ids, corrupted_masks = [], []
+
+    if use_attn:
+        with torch.no_grad():
+            _, attentions = model.get_attention(ids.to(device), mask.to(device))
+            print("ATTN shape: {}".format(attentions.shape))
+            attention_output = [el.cpu().numpy() for el in attentions]
+            attention_output = sum([sum(sum(el[0])) for el in attention_output])
+
+        for seq_idx, seq in enumerate(numpy_ids):
+            attn_score = [
+                tmp_score
+                if seq[tmp_idx] not in skip_token_ids and tmp_idx > context_end_indices[seq_idx]
+                else 0.0
+                for tmp_idx, tmp_score in enumerate(attention_output[seq_idx])
+            ]
+            print("attn score: {}".format(attn_score))
+            sorted_score_indices = np.argsort(attn_score)[::-1]
+            selected_indices = sorted(
+                sorted_score_indices[: int((len(context_end_indices[seq_idx]) - 1) * corrupt_ratio)]
+            )
+            modified_ids = numpy_ids[seq_idx].copy().tolist()
+            modified_mask = numpy_mask[seq_idx].copy().tolist()
+            for deleted_order, deleted_index in enumerate(selected_indices):
+                modified_ids.pop(deleted_index - deleted_order)
+                modified_ids.append(0)
+                modified_mask.pop(0)
+                modified_mask.append(0)
+            assert len(modified_ids) == len(numpy_ids[seq_idx]) == len(modified_mask)
+            numpy_ids[seq_idx], numpy_mask[seq_idx] = modified_ids, modified_mask
+        return torch.tensor(numpy_ids), torch.tensor(numpy_mask)
+    else:
+        for seq_idx, seq in enumerate(numpy_ids):
+            selected_indices = [i + 1 for i in range(len(context_end_indices[seq_idx]) - 1)]
+            selected_indices = sorted(
+                random.sample(selected_indices, int(len(selected_indices) * corrupt_ratio))
+            )
+            modified_ids = numpy_ids[seq_idx].copy().tolist()
+            modified_mask = numpy_mask[seq_idx].copy().tolist()
+            for deleted_order, deleted_index in enumerate(selected_indices):
+                modified_ids.pop(deleted_index - deleted_order)
+                modified_ids.append(0)
+                modified_mask.pop(0)
+                modified_mask.append(0)
+            assert len(modified_ids) == len(numpy_ids[seq_idx]) == len(modified_mask)
+            numpy_ids[seq_idx], numpy_mask[seq_idx] = modified_ids, modified_mask
+        return torch.tensor(numpy_ids), torch.tensor(numpy_mask)
+
+
 def make_corrupted_select_dataset(
     uw_data,
     dd_dataset,
@@ -605,6 +670,17 @@ def save_model(model, epoch, model_path):
             model.state_dict(),
             os.path.join(model_path, f"epoch-{epoch}.pth"),
         )
+
+
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ("yes", "true", "t", "y", "1"):
+        return True
+    elif v.lower() in ("no", "false", "f", "n", "0"):
+        return False
+    else:
+        raise argparse.ArgumentTypeError("Boolean value expected.")
 
 
 def load_model(model, model_path, epoch, len_tokenizer):
