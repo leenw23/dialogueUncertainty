@@ -62,6 +62,7 @@ def main(args):
         bert_attention.resize_token_embeddings(len(tokenizer))
         model_attention = BertSelect(bert_attention)
         model_attention = load_model(model_attention, args.attention_model_path, 0, len(tokenizer))
+        model_attention.to(device)
     else:
         model_attention = None
 
@@ -118,18 +119,24 @@ def main(args):
         print("Epoch {}".format(epoch))
         model.train()
         for step, batch in enumerate(tqdm(trainloader)):
+            if step == 5:
+                break
             optimizer.zero_grad()
-            answer_ids, answer_mask = batch[0], batch[args.retrieval_candiate_num]
+            answer_ids, answer_mask = torch.tensor(batch[0]), torch.tensor(
+                batch[args.retrieval_candidate_num]
+            )
+            assert len(batch) == 2 * args.retrieval_candidate_num + 1
             ids_list, mask_list, label = (
                 batch[: args.retrieval_candidate_num],
                 batch[args.retrieval_candidate_num : 2 * args.retrieval_candidate_num],
                 batch[2 * args.retrieval_candidate_num],
             )
-            ids_list = torch.cat(ids_list, 1).reshape(bs * args.retrieval_candidate_num, 300)
-            mask_list = torch.cat(mask_list, 1).reshape(bs * args.retrieval_candidate_num, 300)
             bs = label.shape[0]
 
-            # make trainable sample for auxiliary tasks
+            ids_list = torch.cat(ids_list, 1).reshape(bs * args.retrieval_candidate_num, 300)
+            mask_list = torch.cat(mask_list, 1).reshape(bs * args.retrieval_candidate_num, 300)
+
+            # Input for auxiliary tasks
             corrupted_ids, corrupted_masks = corrupt_context_wordlevel_for_auxilary(
                 answer_ids,
                 answer_mask,
@@ -140,30 +147,35 @@ def main(args):
                 device=device,
                 model=model_attention,
             )
-            original_auxilary_output = model.aux_forward(
-                answer_ids.to(device), answer_mask.to(device)
+
+            # Input for Usual training
+            ids_list, mask_list = ids_list.to(device), mask_list.to(device)
+            label = label.to(device)
+
+            output, original_auxilary_output, corrupted_auxilary_output = model(
+                ids_list,
+                mask_list,
+                answer_ids.to(device),
+                answer_mask.to(device),
+                corrupted_ids.to(device),
+                corrupted_masks.to(device),
             )
-            corrupted_auxilary_output = model.aux_forward(
-                corrupted_ids.to(device), corrupted_masks.to(device)
-            )
+
+            # Loss Calcuation
             if args.corrupt_loss_type == "margin":
                 corrupt_loss = margin_loss_metric(
                     torch.ones(bs).to(device), original_auxilary_output, corrupted_auxilary_output
                 )
             elif args.corrupt_loss_type == "crossentropy":
-                label = torch.tensor(
+                corrupt_label = torch.tensor(
                     [1.0 for _ in range(len(original_auxilary_output))]
                     + [0.0 for _ in range(len(original_auxilary_output))]
-                )
+                ).to(device)
                 corrupt_loss = bce_metric(
-                    torch.cat([original_auxilary_output, corrupted_auxilary_output]), label
+                    torch.squeeze(torch.cat([original_auxilary_output, corrupted_auxilary_output])),
+                    corrupt_label,
                 )
 
-            # Usual training
-            ids_list, mask_list = ids_list.to(device), mask_list.to(device)
-            label = label.to(device)
-
-            output = model(ids_list, mask_list)
             output = output.reshape(bs, -1)
 
             # Train step
@@ -182,36 +194,89 @@ def main(args):
             global_step += 1
 
         model.eval()
-        loss_list = []
-        try:
+        lossdict = {"select": [], "loss": [], "corrupt": []}
+
+        if True:
             with torch.no_grad():
                 for step, batch in enumerate(tqdm(validloader)):
+                    if step == 5:
+                        break
+                    answer_ids, answer_mask = torch.tensor(batch[0]), torch.tensor(
+                        batch[args.retrieval_candidate_num]
+                    )
+                    assert len(batch) == 2 * args.retrieval_candidate_num + 1
                     ids_list, mask_list, label = (
                         batch[: args.retrieval_candidate_num],
                         batch[args.retrieval_candidate_num : 2 * args.retrieval_candidate_num],
                         batch[2 * args.retrieval_candidate_num],
                     )
-                    label = label.to(device)
                     bs = label.shape[0]
-                    ids_list = (
-                        torch.cat(ids_list, 1)
-                        .reshape(bs * args.retrieval_candidate_num, 300)
-                        .to(device)
+
+                    ids_list = torch.cat(ids_list, 1).reshape(
+                        bs * args.retrieval_candidate_num, 300
                     )
-                    mask_list = (
-                        torch.cat(mask_list, 1)
-                        .reshape(bs * args.retrieval_candidate_num, 300)
-                        .to(device)
+                    mask_list = torch.cat(mask_list, 1).reshape(
+                        bs * args.retrieval_candidate_num, 300
                     )
-                    output = model(ids_list, mask_list)
+
+                    # Input for auxiliary tasks
+                    corrupted_ids, corrupted_masks = corrupt_context_wordlevel_for_auxilary(
+                        answer_ids,
+                        answer_mask,
+                        use_attn=args.attention_for_uw_corruption,
+                        corrupt_ratio=args.uw_corrupt_ratio,
+                        sep_id=tokenizer.sep_token_id,
+                        skip_token_ids=tokens_to_skip,
+                        device=device,
+                        model=model_attention,
+                    )
+
+                    # Input for Usual training
+                    ids_list, mask_list = ids_list.to(device), mask_list.to(device)
+                    label = label.to(device)
+
+                    output, original_auxilary_output, corrupted_auxilary_output = model(
+                        ids_list,
+                        mask_list,
+                        answer_ids.to(device),
+                        answer_mask.to(device),
+                        corrupted_ids.to(device),
+                        corrupted_masks.to(device),
+                    )
+
+                    # Loss Calcuation
+                    if args.corrupt_loss_type == "margin":
+                        corrupt_loss = margin_loss_metric(
+                            torch.ones(bs).to(device),
+                            original_auxilary_output,
+                            corrupted_auxilary_output,
+                        )
+                    elif args.corrupt_loss_type == "crossentropy":
+                        corrupt_label = torch.tensor(
+                            [1.0 for _ in range(len(original_auxilary_output))]
+                            + [0.0 for _ in range(len(original_auxilary_output))]
+                        ).to(device)
+                        corrupt_loss = bce_metric(
+                            torch.squeeze(
+                                torch.cat([original_auxilary_output, corrupted_auxilary_output])
+                            ),
+                            corrupt_label,
+                        )
+
                     output = output.reshape(bs, -1)
-                    loss = crossentropy(output, label)
-                    loss_list.append(loss.cpu().detach().numpy())
-                    write2tensorboard(writer, {"loss": loss}, "train", global_step)
-                final_loss = sum(loss_list) / len(loss_list)
-                write2tensorboard(writer, {"loss": final_loss}, "valid", global_step)
-        except Exception as err:
-            print(err)
+
+                    # Train step
+                    usual_loss = crossentropy(output, label)
+                    loss = usual_loss + args.alpha * corrupt_loss
+                    lossdict["select"].append(usual_loss.cpu().detach().numpy())
+                    lossdict["loss"].append(loss.cpu().detach().numpy())
+                    lossdict["corrupt"].append(corrupt_loss.cpu().detach().numpy())
+
+                for k, v in lossdict.items():
+                    lossdict[k] = sum(v) / len(v)
+
+                write2tensorboard(writer, lossdict, "valid", global_step)
+
         save_model(model, epoch, args.model_path)
 
 
@@ -228,16 +293,18 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=2e-5)
     parser.add_argument("--epoch", type=int, default=1)
     parser.add_argument(
-        "--attention_model_path", type=str, default="'./logs/select_batch12_candi10_seed42/model"
+        "--attention_model_path", type=str, default="./logs/select_batch12_candi10_seed42/model"
     )
     parser.add_argument(
         "--retrieval_candidate_num", type=int, default=10, help="1개의 정답을 포함하여 몇 개의 candidate를 줄 것인지"
     )
+    parser.add_argument("--random_initialization", type=str2bool, default=False)
 
     parser.add_argument(
         "--corrupt_loss_type", type=str, default="margin", choices=["margin", "crossentropy"]
     )
     parser.add_argument("--uw_corruption", type=str2bool, default=False)
+    parser.add_argument("--ic_corruption", type=str2bool, default=False)
     parser.add_argument("--uw_corrupt_ratio", type=float, default=0.0)
     parser.add_argument("--attention_for_uw_corruption", type=str2bool, default=False)
     parser.add_argument(
@@ -249,10 +316,13 @@ if __name__ == "__main__":
 
     parser.add_argument("--random_seed", type=int, default=42)
     args = parser.parse_args()
-    assert isinstance(args.use_corruption, bool)
+    assert isinstance(args.uw_corruption, bool)
+    assert isinstance(args.ic_corruption, bool)
     assert isinstance(args.attention_for_uw_corruption, bool)
+    assert isinstance(args.random_initialization, bool)
+    assert args.uw_corruption + args.ic_corruption >= 1
 
-    args.exp_name = "select_batch12_candi10"
+    args.exp_name = "select_batch{}_candi{}".format(args.batch_size, args.retrieval_candidate_num)
     if args.uw_corruption:
         args.exp_name += "-uw"
         if args.attention_for_uw_corruption:
@@ -260,6 +330,15 @@ if __name__ == "__main__":
         else:
             args.exp_name += "-rand"
         args.exp_name += str(args.uw_corrupt_ratio)
+
+    if args.corrupt_loss_type == "margin":
+        args.exp_name += "-margin{}".format(args.margin)
+    elif args.corrupt_loss_type == "crossentropy":
+        args.exp_name += "-bce"
+    else:
+        raise ValueError
+
+    args.exp_name += "-alpha{}".format(args.alpha)
     print(f"Exp name: {args.exp_name}")
 
     args.exp_path = os.path.join(args.log_path, args.exp_name)
