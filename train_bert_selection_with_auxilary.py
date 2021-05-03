@@ -195,12 +195,9 @@ def main(args):
 
         model.eval()
         lossdict = {"select": [], "loss": [], "corrupt": []}
-
-        if True:
+        try:
             with torch.no_grad():
                 for step, batch in enumerate(tqdm(validloader)):
-                    if step == 5:
-                        break
                     answer_ids, answer_mask = torch.tensor(batch[0]), torch.tensor(
                         batch[args.retrieval_candidate_num]
                     )
@@ -271,11 +268,11 @@ def main(args):
                     lossdict["select"].append(usual_loss.cpu().detach().numpy())
                     lossdict["loss"].append(loss.cpu().detach().numpy())
                     lossdict["corrupt"].append(corrupt_loss.cpu().detach().numpy())
-
-                for k, v in lossdict.items():
-                    lossdict[k] = sum(v) / len(v)
-
-                write2tensorboard(writer, lossdict, "valid", global_step)
+            for k, v in lossdict.items():
+                lossdict[k] = sum(v) / len(v)
+            write2tensorboard(writer, lossdict, "valid", global_step)
+        except Exception as err:
+            print(err)
 
         save_model(model, epoch, args.model_path)
 
