@@ -50,9 +50,21 @@ def get_dd_corpus(setname):
     with open(fname, "r") as f:
         ls = [el.strip() for el in f.readlines()]
         for idx, line in enumerate(ls):
-            line = [
-                el.strip().lower() for el in line.split("__eou__") if el.strip() != ""
-            ]
+            line = [el.strip().lower() for el in line.split("__eou__") if el.strip() != ""]
+            ls[idx] = line
+    return ls
+
+
+def get_persona_corpus(setname):
+    assert setname in ["dev", "test"]
+    if setname == "dev":
+        setname = "valid"
+    fname = "./data/personachat/persona_{}.txt".format(setname)
+    assert os.path.exists(fname)
+    with open(fname, "r") as f:
+        ls = [el.strip() for el in f.readlines()]
+        for idx, line in enumerate(ls):
+            line = [el.strip().lower() for el in line.split("__eou__") if el.strip() != ""]
             ls[idx] = line
     return ls
 

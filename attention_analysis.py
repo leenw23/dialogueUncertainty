@@ -77,9 +77,7 @@ def main(args):
         final_item = {
             "prediction": prediction[1],
             "attention": attention_output,
-            "feature": [
-                int(el) for el in train_dataset.feature[0][idx].numpy() if el != 0
-            ],
+            "feature": [int(el) for el in train_dataset.feature[0][idx].numpy() if el != 0],
         }
         saver.append(final_item)
         # draw_and_save(tokenizer, final_item, args.attention_img_fname.format(idx))
@@ -105,7 +103,6 @@ def draw_and_save(tokenizer, item, save_fname):
         if tok in [".", ",", "?", "!", "[UTTR]"]:
             attention[idx] = 0
     attention /= sum(attention)
-
     fig, ax = plt.subplots(figsize=(len(context), 5))
     im = ax.imshow([attention])
     ax.set_xticks(np.arange(len(context)))
@@ -130,7 +127,7 @@ def draw_and_save(tokenizer, item, save_fname):
     )
     plt.savefig(save_fname)
     plt.close("all")
-    return 0
+    
 
 
 if __name__ == "__main__":

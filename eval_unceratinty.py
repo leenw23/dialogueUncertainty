@@ -37,9 +37,9 @@ from utils import (
 )
 
 
-def modeling_mcdropout_uncertainty(
-    model, ids, masks, softmax_op, num_forward_pass: int = 10
-):
+
+
+def modeling_mcdropout_uncertainty(model, ids, masks, num_forward_pass: int = 10):
     """한 sample에 대한 예측 및 uncertainty value를 반환
 
     Args:
@@ -52,9 +52,7 @@ def modeling_mcdropout_uncertainty(
     prediction_list = []
     for forward_pass in range(num_forward_pass):
         with torch.no_grad():
-            prediction_list.append(
-                float(softmax_op(model(ids, masks)[0]).cpu().numpy()[0][1])
-            )
+            prediction_list.append(float(model(ids, masks)[0].cpu().numpy()))
     return np.mean(prediction_list), np.var(prediction_list)
 
 
@@ -72,7 +70,7 @@ def mcdrop_main(args):
     model.to(device)
 
     raw_dd_test = get_dd_corpus("test")
-    test_dataset = RankerDataset(raw_dd_test, tokenizer, "test", 128, UTTR_TOKEN)
+    test_dataset = RankerDataset(raw_dd_test, tokenizer, "test", 300, UTTR_TOKEN)
     softmax = torch.nn.Softmax(dim=1)
 
     prediction_list, uncertainty_list, label_list = [], [], []
@@ -96,6 +94,7 @@ def mcdrop_main(args):
     accuracy = accuracy_score(label_list, discrete_prediction_list)
     f1 = f1_score(label_list, discrete_prediction_list)
     calibration_error = cal.get_ece(prediction_list, label_list)
+    print("MC-dropout")
     print("Accuracy: {}".format(accuracy))
     print("f1: {}".format(f1))
     print("ECE: {}".format(calibration_error))
@@ -111,7 +110,7 @@ def multi_candidate_main(args):
 
     model = BertForNextSentencePrediction.from_pretrained("bert-base-uncased")
     model.resize_token_embeddings(len(tokenizer))
-    model = load_model(model, args.model_path, 0, len(tokenizer))
+    model = load_model(model, args.model_path, 1, len(tokenizer))
     model.to(device)
 
     """
@@ -184,9 +183,7 @@ def multi_candidate_analysis(fname, candidate_size=5):
         pos_score, neg_score = item["positive"], item["negative"]
         for k in range(5):
             k += 1
-            candidate = random.sample(pos_score, k) + random.sample(
-                neg_score, candidate_size - k
-            )
+            candidate = random.sample(pos_score, k) + random.sample(neg_score, candidate_size - k)
             entropy_map[k].append(entropy(candidate))
     for k, v in entropy_map.items():
         entropy_map[k] = sum(v) / len(v)
@@ -211,7 +208,7 @@ if __name__ == "__main__":
         default="deterministic_bert_ranker",
     )
     parser.add_argument("--log_path", type=str, default="logs")
-    parser.add_argument("--epoch", type=int, default=0)
+    parser.add_argument("--epoch", type=int, default=1)
 
     args = parser.parse_args()
     args.exp_path = os.path.join(args.log_path, args.exp_name)
@@ -219,6 +216,6 @@ if __name__ == "__main__":
     args.board_path = os.path.join(args.exp_path, "board")
     parser.add_argument("--num_forward_pass", type=int, default=10)
 
-    # mcdrop_main(args)
+    mcdrop_main(args)
     # multi_candidate_main(args)
-    multi_candidate_analysis(fname="pos_neg_pred_scores.json")
+    # multi_candidate_analysis(fname="pos_neg_pred_scores.json")
