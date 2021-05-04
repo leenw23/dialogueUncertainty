@@ -65,6 +65,7 @@ def main(args):
         model_list.append(model)
 
     if not args.use_annotated_testset:
+        print("usual testset")
         if args.corpus == "dd":
             txt_fname = (
                 "./data/selection/text_cand{}".format(args.retrieval_candidate_num) + "_{}.pck"
@@ -83,7 +84,7 @@ def main(args):
                 + "_{}.pck"
             )
             raw_dataset = get_persona_corpus(args.setname)
-
+		
         selection_dataset = SelectionDataset(
             raw_dataset,
             tokenizer,
@@ -207,7 +208,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process some integers.")
     parser.add_argument("--corpus", default="dd", choices=["persona", "dd"])
-    parser.add_argument("--setname", default="dev", choices=["dev", "test"])
+    parser.add_argument("--setname", default="test", choices=["dev", "test"])
     parser.add_argument("--log_path", type=str, default="corrupted_select_eval")
     parser.add_argument(
         "--model_path",
