@@ -276,7 +276,9 @@ if __name__ == "__main__":
     assert isinstance(args.is_aux_model, bool)
     if args.replace_annotated_testset_into_original:
         assert args.use_annotated_testset
-    args.exp_name = f"{args.model}-candi{args.retrieval_candidate_num}-{args.setname}"
+    assert len(args.model_path.split()) == 4
+    exp_name_model_name = args.model_path.split()[2].strip()
+    args.exp_name = f"{exp_name_model_name}-candi{args.retrieval_candidate_num}-{args.setname}"
     if args.model == "select":
         assert "-candi" in args.exp_name
         args.exp_name = args.exp_name.replace("-candi", "-seed{}-candi".format(args.random_seed))
