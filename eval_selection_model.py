@@ -12,6 +12,7 @@ from sklearn.metrics import accuracy_score, f1_score
 import json
 from tensorboardX import SummaryWriter
 from torch import Tensor
+from utils import str2bool
 from torch.nn import functional as F
 from torch.nn.modules.loss import CrossEntropyLoss
 from torch.optim.adamw import AdamW
@@ -19,7 +20,7 @@ from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.dataloader import DataLoader
 from tqdm import tqdm
 from transformers import BertConfig, BertForNextSentencePrediction, BertTokenizer, BertModel
-from selection_model import BertSelect
+from selection_model import BertSelect, BertSelectAuxilary
 from preprocess_dataset import get_dd_corpus, get_dd_multiref_testset, get_persona_corpus
 from utils import (
     recall_x_at_k,
@@ -54,8 +55,12 @@ def main(args):
     for seed in seed_list:
         bert = BertModel.from_pretrained("bert-base-uncased")
         bert.resize_token_embeddings(len(tokenizer))
-        model = BertSelect(bert)
+        if args.is_aux_model:
+            model = BertSelectAuxilary(bert)
+        else:
+            model = BertSelect(bert)
         model = load_model(model, args.model_path.format(seed), 0, len(tokenizer))
+
         model.to(device)
         model_list.append(model)
 
@@ -143,24 +148,37 @@ def main(args):
         ).to(device)
         prediction_list = []
         with torch.no_grad():
-            if args.model == "mcdrop":
+            if args.is_aux_model:
                 assert len(model_list) == 1
-                model = model_list[0]
-                model.train()
-                for forward_pass in range(5):
-                    with torch.no_grad():
-                        prediction_list.append([float(el) for el in model(ids, mask).cpu().numpy()])
+                with torch.no_grad():
+                    model = model_list[0]
+                    prediction_list.append(model.predict(ids, mask).cpu().numpy())
                 prediction_list = np.array(prediction_list)
                 pred_list_for_current_context = np.mean(prediction_list, 0)
                 uncertainty_list_for_current_context = np.var(prediction_list, 0)
             else:
-                assert args.model in ["ensemble", "select", "nopt"]
-                for model in model_list:
-                    with torch.no_grad():
-                        prediction_list.append([float(el) for el in model(ids, mask).cpu().numpy()])
-                prediction_list = np.array(prediction_list)
-                pred_list_for_current_context = np.mean(prediction_list, 0)
-                uncertainty_list_for_current_context = np.var(prediction_list, 0)
+                if args.model == "mcdrop":
+                    assert len(model_list) == 1
+                    model = model_list[0]
+                    model.train()
+                    for forward_pass in range(5):
+                        with torch.no_grad():
+                            prediction_list.append(
+                                [float(el) for el in model(ids, mask).cpu().numpy()]
+                            )
+                    prediction_list = np.array(prediction_list)
+                    pred_list_for_current_context = np.mean(prediction_list, 0)
+                    uncertainty_list_for_current_context = np.var(prediction_list, 0)
+                else:
+                    assert args.model in ["ensemble", "select", "nopt"]
+                    for model in model_list:
+                        with torch.no_grad():
+                            prediction_list.append(
+                                [float(el) for el in model(ids, mask).cpu().numpy()]
+                            )
+                    prediction_list = np.array(prediction_list)
+                    pred_list_for_current_context = np.mean(prediction_list, 0)
+                    uncertainty_list_for_current_context = np.var(prediction_list, 0)
 
         pred_list_for_current_context = [float(el) for el in pred_list_for_current_context]
         uncertainty_list_for_current_context = [
@@ -246,6 +264,7 @@ if __name__ == "__main__":
         default="False",
         choices=["True", "False"],
     )
+    parser.add_argument("--is_aux_model", type=str2bool, default=False)
 
     args = parser.parse_args()
     args.use_annotated_testset = args.use_annotated_testset == "True"
@@ -253,7 +272,7 @@ if __name__ == "__main__":
         args.replace_annotated_testset_into_original == "True"
     )
     args.is_ic = args.is_ic == "True"
-
+    assert isinstance(args.is_aux_model, bool)
     if args.replace_annotated_testset_into_original:
         assert args.use_annotated_testset
     args.exp_name = f"{args.model}-candi{args.retrieval_candidate_num}-{args.setname}"

@@ -45,6 +45,12 @@ class BertSelectAuxilary(nn.Module):
 
         return selection_output, aux_org_output, aux_corrupt_output
 
+    def predict(self, ids, mask):
+        output, _ = self.bert(ids, mask, return_dict=False)
+        cls_ = output[:, 0]
+        selection_output = self.linear(cls_)
+        return selection_output
+
     def get_attention(self, ids, mask):
         output = self.bert(ids, mask, return_dict=True, output_attentions=True)
         prediction = self.linear(output["last_hidden_state"][:, 0])
