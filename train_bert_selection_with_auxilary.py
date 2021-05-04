@@ -119,8 +119,6 @@ def main(args):
         print("Epoch {}".format(epoch))
         model.train()
         for step, batch in enumerate(tqdm(trainloader)):
-            if step == 5:
-                break
             optimizer.zero_grad()
             answer_ids, answer_mask = torch.tensor(batch[0]), torch.tensor(
                 batch[args.retrieval_candidate_num]
