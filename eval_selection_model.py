@@ -65,6 +65,7 @@ def main(args):
         model_list.append(model)
 
     if not args.use_annotated_testset:
+        print("usual testset")
         if args.corpus == "dd":
             txt_fname = (
                 "./data/selection/text_cand{}".format(args.retrieval_candidate_num) + "_{}.pck"
@@ -83,7 +84,7 @@ def main(args):
                 + "_{}.pck"
             )
             raw_dataset = get_persona_corpus(args.setname)
-
+		
         selection_dataset = SelectionDataset(
             raw_dataset,
             tokenizer,
@@ -264,9 +265,15 @@ if __name__ == "__main__":
     assert isinstance(args.is_aux_model, bool)
     if args.replace_annotated_testset_into_original:
         assert args.use_annotated_testset
+<<<<<<< HEAD
     assert len(args.model_path.split("/")) == 4
 
     args.exp_name = f"{args.model}-candi{args.retrieval_candidate_num}-{args.setname}"
+=======
+    assert len(args.model_path.split('/')) == 4
+    exp_name_model_name = args.model_path.split('/')[2].strip()
+    args.exp_name = f"{exp_name_model_name}-candi{args.retrieval_candidate_num}-{args.setname}"
+>>>>>>> 321965b0475bab9675b090d969869f612918005a
     if args.model == "select":
         assert "-candi" in args.exp_name
         args.exp_name = args.exp_name.replace("-candi", "-seed{}-candi".format(args.random_seed))

@@ -413,8 +413,10 @@ class SelectionDataset(torch.utils.data.Dataset):
 
     def _tensorize_selection_dataset(self, selection_dataset, tensor_save_fname, num_candidate):
         if os.path.exists(tensor_save_fname):
+            print(f"{tensor_save_fname} exist!")
             with open(tensor_save_fname, "rb") as f:
                 return pickle.load(f)
+        print("make {}".format(tensor_save_fname))
         ids_list = [[] for _ in range(num_candidate)]
         masks_list = [[] for _ in range(num_candidate)]
         labels = []

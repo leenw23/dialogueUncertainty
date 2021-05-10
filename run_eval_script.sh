@@ -121,3 +121,4 @@ python eval_selection_model.py --model=ensemble --setname=test --use_annotated_t
 # python eval_selection_model.py --model=mcdrop --setname=test --use_annotated_testset=True --annotated_testset=./final_annotation/IC_auto_test_0.7_3.txt --annotated_testset_attribute=IC_auto_test_0.7_3 --replace_annotated_testset_into_original=False --is_ic=True
 # python eval_selection_model.py --model=ensemble --setname=test --use_annotated_testset=True --annotated_testset=./final_annotation/IC_auto_test_0.7_3.txt --annotated_testset_attribute=IC_auto_test_0.7_3 --replace_annotated_testset_into_original=False --is_ic=True
 # #python eval_selection_model.py --model=nopt --model_path=./logs/select_batch12_candi10_seed{}_randinit/model --setname=test --use_annotated_testset=True --annotated_testset=./final_annotation/IC_auto_test_0.7_3.txt --annotated_testset_attribute=IC_auto_test_0.7_3 --replace_annotated_testset_into_original=False --is_ic=True
+
