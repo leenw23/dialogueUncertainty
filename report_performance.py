@@ -29,7 +29,7 @@ def main(fname):
     with open(fname, "r") as f:
         prediction_data = [json.loads(el) for el in f.readlines() if el.strip() != ""]
 
-    r10 = run_origianl_recall(prediction_data, 10)
+    r10 = run_origianl_recall(prediction_data, 10)d
     calibration_error = cal.get_ece(
         [softmax_np(l["pred"]) for l in prediction_data], [0 for _ in range(len(prediction_data))]
     )
@@ -65,5 +65,5 @@ def run_origianl_recall(
 
 
 if __name__ == "__main__":
-    dirname = "./corrupted_select_eval/"
+    dirname = "./ic_filtered_experiment_results/"
     main_script(dirname)

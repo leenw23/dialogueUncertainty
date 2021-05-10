@@ -136,7 +136,7 @@ def make_tuple(exp):
     return exp
 
 
-def get_ic_annotation(fname, change_ic_to_original: bool, is_dev):
+def get_ic_annotation(fname, change_ic_to_original: bool):
     with open(fname, "r") as f:
         ls = [el.strip() for el in f.readlines()]
 
@@ -157,40 +157,56 @@ def get_ic_annotation(fname, change_ic_to_original: bool, is_dev):
         if "uttrs" not in item:
             item["uttrs"] = []
         item["uttrs"].append(line)
-
+    if len(item) != 0:
+        item_list.append(item)
     final_output = []
-    for item in item_list:
+    for item_idx, item in enumerate(item_list):
         removed_num, remain_num = item["removed_context_num"], item["remain_context_num"]
         uttrs = item["uttrs"]
-        assert len(uttrs) == removed_num + remain_num + 1
+        assert len(uttrs) in [removed_num + remain_num + 1, removed_num + remain_num]
         context = uttrs[:-1]
         response = uttrs[-1]
+
+        assert len(context) in [remain_num + removed_num, remain_num + removed_num - 1]
         if not change_ic_to_original:
-            context = context[removed_num:]
+            context = context[-remain_num:]
             assert len(context) == remain_num
-        else:
-            assert len(context) == remain_num + removed_num
+
         context = uttr_token.join(context)
         context = context.replace(" ##", "")
         response = response.replace(" ##", "")
         assert "##" not in context
         assert "##" not in response
         final_output.append([context, response])
+
     return final_output
 
 
-def get_uw_annotation(fname, change_uw_to_original: bool, replace_golden_to_nota: bool, is_dev):
+def get_uw_annotation(fname, change_uw_to_original: bool):
     with open(fname, "r") as f:
         ls = [el.strip() for el in f.readlines()]
     item_list, item = [], {}
     uttr_token = get_uttr_token()
+    original_turn, changed_turn = False, False
 
-    for line in ls:
+    for line_idx, line in enumerate(ls):
         if line == "":
-            assert len(item) != 0
-            item_list.append(item)
-            item = {}
-            continue
+            if changed_turn:
+                assert not original_turn
+                assert len(item) != 0
+                item_list.append(item)
+                item = {}
+                changed_turn = False
+                continue
+            elif original_turn:
+                assert not changed_turn
+                continue
+            else:
+                print(line_idx)
+                print(original_turn, changed_turn)
+                print(len(item_list))
+                raise ValueError()
+
         # head
         if len(item) == 0:
             idx, change_num = [int(el) for el in line.split()]
@@ -207,40 +223,56 @@ def get_uw_annotation(fname, change_uw_to_original: bool, replace_golden_to_nota
             changed_words = line.split()
             item["changed_words"] = changed_words
             continue
-        if len(item) == 4:
-            assert "uttrs" not in item
-            item["uttrs"] = []
-        item["uttrs"].append(line.strip())
 
+        if line == "origin":
+            assert len(item) == 4
+            assert not original_turn and not changed_turn
+            original_turn = True
+            item["original_uttrs"] = []
+            continue
+        if line == "changed":
+            assert len(item) == 5
+            original_turn = False
+            assert not original_turn and not changed_turn
+            item["changed_uttrs"] = []
+            changed_turn = True
+            continue
+        if original_turn:
+            item["original_uttrs"].append(line.strip())
+            continue
+        if changed_turn:
+            item["changed_uttrs"].append(line.strip())
+            continue
+    if len(item) != 0:
+        item_list.append(item)
+
+    print(item_list[0]["changed_uttrs"])
+    print(item_list[0]["original_uttrs"])
+    print()
     final_output = []
     for itemIdx, item in enumerate(item_list):
-        change_num, uttrs, org_words, chd_words = (
+        change_num, org_words, chd_words = (
             item["num_change"],
-            item["uttrs"],
             item["original_words"],
             item["changed_words"],
         )
-        assert len(org_words) == len(chd_words)
-        context, response = uttr_token.join(uttrs[:-1]), uttrs[-1]
+        original_uttrs = item["original_uttrs"]
+        changed_uttrs = item["changed_uttrs"]
+
+        assert len(org_words) == len(chd_words) == change_num
+
         if change_uw_to_original:
-            total_restore_count = 0
-            for word_idx, word in enumerate(chd_words):
-                total_restore_count += context.count(word)
-                context = context.replace(word, org_words[word_idx])
-            try:
-                assert total_restore_count == change_num
-            except:
-                continue
+            context, response = uttr_token.join(original_uttrs[:-1]), original_uttrs[-1]
+        else:
+            context, response = uttr_token.join(changed_uttrs[:-1]), changed_uttrs[-1]
         context = context.replace(" ##", "")
         response = response.replace(" ##", "")
+        context = context.replace("##", "")
         assert "##" not in context
         assert "##" not in response
         final_output.append([context, response])
 
-    if is_dev:
-        return final_output[: int(len(final_output) * 0.3)]
-    else:
-        return final_output[int(len(final_output) * 0.3) :]
+    return final_output
 
 
 def get_uw_annotation_legacy(

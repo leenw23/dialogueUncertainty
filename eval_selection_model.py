@@ -101,17 +101,15 @@ def main(args):
             raw_corrupted_dataset = get_ic_annotation(
                 args.annotated_testset,
                 change_ic_to_original=args.replace_annotated_testset_into_original,
-                is_dev=args.setname == "dev",
             )
         else:
             raw_corrupted_dataset = get_uw_annotation(
                 args.annotated_testset,
                 change_uw_to_original=args.replace_annotated_testset_into_original,
-                replace_golden_to_nota=False,
-                is_dev=args.setname == "dev",
             )
-        saved_tensor_fname = "./data/corrupted_selection/{}_candi{}_test.pck".format(
-            args.annotated_testset_attribute, args.retrieval_candidate_num
+        print(raw_corrupted_dataset[0])
+        saved_tensor_fname = "./data/ic_corrupted_selection/{}_candi{}_test_{}.pck".format(
+            args.annotated_testset_attribute, args.retrieval_candidate_num, args.random_seed
         )
         if args.replace_annotated_testset_into_original:
             assert args.annotated_testset_attribute in saved_tensor_fname
@@ -208,7 +206,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process some integers.")
     parser.add_argument("--corpus", default="dd", choices=["persona", "dd"])
     parser.add_argument("--setname", default="dev", choices=["dev", "test"])
-    parser.add_argument("--log_path", type=str, default="corrupted_select_eval")
+    parser.add_argument("--log_path", type=str, default="ic_filtered_experiment_results")
     parser.add_argument(
         "--model_path",
         type=str,
@@ -242,15 +240,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--annotated_testset_attribute",
         type=str,
-        choices=[
-            "uw_pydict_attn0.1",
-            "uw_wordnet_attn0.1",
-            "uw_wordnet_attn0.2_threshold0.4",
-            "uw_wordnet_ratio0.1_attn0.22",
-            "ic_attnratio0.7_contextturn3",
-            "ic_attnratio0.75_contextturn3",
-            "ic_attnratio0.7_contextturn4",
-        ],
     )
     parser.add_argument(
         "--replace_annotated_testset_into_original",
@@ -275,9 +264,9 @@ if __name__ == "__main__":
     assert isinstance(args.is_aux_model, bool)
     if args.replace_annotated_testset_into_original:
         assert args.use_annotated_testset
-    assert len(args.model_path.split()) == 4
-    exp_name_model_name = args.model_path.split()[2].strip()
-    args.exp_name = f"{exp_name_model_name}-candi{args.retrieval_candidate_num}-{args.setname}"
+    assert len(args.model_path.split("/")) == 4
+
+    args.exp_name = f"{args.model}-candi{args.retrieval_candidate_num}-{args.setname}"
     if args.model == "select":
         assert "-candi" in args.exp_name
         args.exp_name = args.exp_name.replace("-candi", "-seed{}-candi".format(args.random_seed))
@@ -289,6 +278,7 @@ if __name__ == "__main__":
         else:
             args.exp_name = args.annotated_testset_attribute + "_" + args.exp_name
 
+    os.makedirs(args.log_path, exist_ok=True)
     args.output_fname = os.path.join(args.log_path, args.exp_name) + ".json"
     print(args.output_fname)
     assert not os.path.exists(args.output_fname)
