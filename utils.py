@@ -347,35 +347,6 @@ def get_uw_annotation_legacy(
         return final_output[int(len(final_output) * 0.3) :]
 
 
-# def read_uw_annotation(fname, replace_golden_to_nota):
-#     nota_token = get_nota_token()
-#     with open(fname, "r") as f:
-#         ls = [el.strip() for el in f.readlines()]
-#     sample = []
-#     tmp = []
-#     for line in ls:
-#         if line == "":
-#             if tmp == []:
-#                 continue
-#             context = "[UTTR]".join(tmp[1:-1])
-#             if replace_golden_to_nota:
-#                 response = nota_token
-#             else:
-#                 response = tmp[-1]
-#             sample.append([context, response])
-#             tmp = []
-#             continue
-#         tmp.append(line)
-#     if tmp != []:
-#         context = "[UTTR]".join(tmp[1:-1])
-#         if replace_golden_to_nota:
-#             response = nota_token
-#         else:
-#             response = tmp[-1]
-#         sample.append([context, response])
-#     return sample
-
-
 def set_random_seed(seed):
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -386,9 +357,6 @@ def set_random_seed(seed):
 
 
 def recall_x_at_k(score_list, x, k, answer_index):
-    """
-    R_x@K를 계산합니다.
-    """
     assert len(score_list) == x
     sorted_score_index = np.array(score_list).argsort()[::-1]
     assert answer_index in sorted_score_index
@@ -483,18 +451,6 @@ class SelectionDataset(torch.utils.data.Dataset):
     def _get_selection_dataset(
         self, raw_dataset, num_candidate, txt_save_fname, corrupted_context_dataset
     ):
-        """Selection evlauation을 위한 데이터셋이 이미 만들어져있으면 가져오고 아니면 새로 만들어서 저장하고 가져옴.
-
-        Args:
-            raw_dataset ([type]): Raw DailyDialog Testset
-            num_candidate ([type]): 총 몇 개의 candidate중에 정답을 찾도록 할 것인지. Recall_x@k에서의 X
-            txt_save_fname ([type]): 만든 결과의 text를 저장할 파일
-            corrupted_context_dataset: Context 일부가 고장난 데이터셋. Propose Method (maybe?)
-
-        Returns:
-            [type]: [description]
-        """
-
         print("Selection filename: {}".format(txt_save_fname))
         if os.path.exists(txt_save_fname):
             print(f"{txt_save_fname} exist!")
@@ -512,7 +468,7 @@ class SelectionDataset(torch.utils.data.Dataset):
     def _make_selection_dataset(
         self, raw_dataset, num_candidate, corrupted_context_dataset
     ):
-        """num_candidate개의 response candidate를 가진 샘플들을 만들어서 반환.
+        """
         Returns:
             datset: List of [context(str), positive_response(str), negative_response_1(str), (...) negative_response_(num_candidate-1)(str)]
         """
@@ -655,9 +611,6 @@ class RankerDataset(torch.utils.data.Dataset):
 
     def _get_triplet_dataset(self, raw_dataset):
         """
-        [context,pos_response,negative_response]의 리스트를 반환합니다.
-        이미 만들어서 저장해둔 파일이 있으면 그걸 가져다주고, 없으면 새로 만듬.
-
         Args:
             raw_dataset (List[List[str]]): List of conversation. Each conversation is list of utterance(str).
         """
@@ -674,9 +627,6 @@ class RankerDataset(torch.utils.data.Dataset):
         return triplet_dataset
 
     def _make_triplet_dataset(self, raw_dataset):
-        """
-        List of List of utterance인 raw_dataset을 받아서 (context, positive_response, negative_response (random)) 들의 리스트를 만들어서 반환
-        """
         assert isinstance(raw_dataset, list) and all(
             [isinstance(el, list) for el in raw_dataset]
         )
@@ -703,9 +653,6 @@ class RankerDataset(torch.utils.data.Dataset):
         return dataset
 
     def _slide_conversation(self, conversation):
-        """
-        multi-turn utterance로 이루어진 single conversation을 여러 개의 "context-response" pair로 만들어 반환
-        """
         assert isinstance(conversation, list) and all(
             [isinstance(el, str) for el in conversation]
         )
@@ -766,15 +713,6 @@ def load_model(model, model_path, epoch, len_tokenizer):
 
 
 def make_random_negative_for_multi_ref(multiref_original, num_neg=30):
-    """multi-candidate(positive)가 있는 데이터셋에 대해, 같은 수의 random-negative response를 찾아서 반환
-
-    Args:
-        multiref_original (List[context(str), List[postiive_utterance(str)]]): get_dd_multiref_testset()에서 반환된 multi-reference candidates
-        num_neg (int, optional): 몇 개의 random response를 담아서 반환할건지.
-    Returns:
-        multiref_original (List[context(str), List[postiive_utterance(str),List[negative_utterance(str)]]):
-
-    """
     for idx, item in enumerate(multiref_original):
         context, responses = item
         sample = random.sample(range(len(multiref_original)), num_neg + 1)
