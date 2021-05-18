@@ -191,7 +191,7 @@ if __name__ == "__main__":
         "--retrieval_candidate_num",
         type=int,
         default=10,
-        help="1개의 정답을 포함하여 몇 개의 candidate를 줄 것인지",
+        help="Number of candidates including golden",
     )
     parser.add_argument(
         "--uw_unk_ratio",
