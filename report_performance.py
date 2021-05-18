@@ -114,7 +114,7 @@ def run_origianl_recall(
     prediction_list,
     x: int,
 ):
-    """Uncertainty threshold를 기반으로 Evaluation을 진행합니다.
+    """.
 
     Args:
         prediction_list (List[Dict[str,Union[List[float], bool]]]): {
@@ -132,5 +132,5 @@ def run_origianl_recall(
 
 
 if __name__ == "__main__":
-    dirname = "./0513_result/"
+    dirname = "./result_dir/"
     main_script(dirname)
