@@ -84,7 +84,7 @@ def main(args):
                 + "_{}.pck"
             )
             raw_dataset = get_persona_corpus(args.setname)
-		
+
         selection_dataset = SelectionDataset(
             raw_dataset,
             tokenizer,
@@ -108,10 +108,14 @@ def main(args):
                 args.annotated_testset,
                 change_uw_to_original=args.replace_annotated_testset_into_original,
             )
-        print(raw_corrupted_dataset[0])
-        saved_tensor_fname = "./data/ic_corrupted_selection/{}_candi{}_test_{}.pck".format(
-            args.annotated_testset_attribute, args.retrieval_candidate_num, args.random_seed
+        category = "ic" if args.is_ic else "uw"
+        saved_tensor_fname = "./data/{}_selection/{}-candi{}_test_{}.pck".format(
+            category,
+            args.annotated_testset_attribute,
+            args.retrieval_candidate_num,
+            args.random_seed,
         )
+        os.makedirs(os.path.dirname(saved_tensor_fname), exist_ok=True)
         if args.replace_annotated_testset_into_original:
             assert args.annotated_testset_attribute in saved_tensor_fname
             saved_tensor_fname = saved_tensor_fname.replace(
@@ -207,7 +211,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process some integers.")
     parser.add_argument("--corpus", default="dd", choices=["persona", "dd"])
     parser.add_argument("--setname", default="dev", choices=["dev", "test"])
-    parser.add_argument("--log_path", type=str, default="ic_filtered_experiment_results")
+    parser.add_argument("--log_path", type=str, default="0513_result")
     parser.add_argument(
         "--model_path",
         type=str,
@@ -265,18 +269,11 @@ if __name__ == "__main__":
     assert isinstance(args.is_aux_model, bool)
     if args.replace_annotated_testset_into_original:
         assert args.use_annotated_testset
-<<<<<<< HEAD
+
     assert len(args.model_path.split("/")) == 4
 
     args.exp_name = f"{args.model}-candi{args.retrieval_candidate_num}-{args.setname}"
-=======
-    assert len(args.model_path.split('/')) == 4
-    exp_name_model_name = args.model_path.split('/')[2].strip()
-    args.exp_name = f"{exp_name_model_name}-candi{args.retrieval_candidate_num}-{args.setname}"
->>>>>>> 321965b0475bab9675b090d969869f612918005a
-    if args.model == "select":
-        assert "-candi" in args.exp_name
-        args.exp_name = args.exp_name.replace("-candi", "-seed{}-candi".format(args.random_seed))
+
     if args.corpus != "dd":
         args.exp_name = "NS-{}-".format(args.corpus) + args.exp_name
     if args.use_annotated_testset:
@@ -284,10 +281,14 @@ if __name__ == "__main__":
             args.exp_name = args.annotated_testset_attribute + "_original_" + args.exp_name
         else:
             args.exp_name = args.annotated_testset_attribute + "_" + args.exp_name
+        args.log_path = os.path.join(args.log_path, args.annotated_testset_attribute)
+    else:
+        args.log_path = os.path.join(args.log_path, args.corpus)
 
     os.makedirs(args.log_path, exist_ok=True)
     args.output_fname = os.path.join(args.log_path, args.exp_name) + ".json"
-    print(args.output_fname)
+    print("\n", args.output_fname, "\n")
+
     assert not os.path.exists(args.output_fname)
     os.makedirs(os.path.dirname(args.output_fname), exist_ok=True)
     if args.model == "nopt":

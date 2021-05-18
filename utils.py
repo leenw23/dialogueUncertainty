@@ -8,6 +8,12 @@ import torch
 from tqdm import tqdm
 
 
+def brier_multi(targets, probs):
+    # https://stats.stackexchange.com/questions/403544/how-to-compute-the-brier-score-for-more-than-two-classes
+    targets, probs = np.array(targets), np.array(probs)
+    return np.mean(np.sum((probs - targets) ** 2, axis=1))
+
+
 def corrupt_context_wordlevel_for_auxilary(
     ids,
     mask,
@@ -151,8 +157,10 @@ def get_ic_annotation(fname, change_ic_to_original: bool):
             continue
         if len(item) == 0:
             tmp = [int(el) for el in line.strip().split()]
-            item["removed_context_num"] = tmp[1]
-            item["remain_context_num"] = tmp[2]
+            assert len(tmp) == 2
+            item["remain_context_num"] = tmp[1]
+            # item["removed_context_num"] = tmp[1]
+            # item["remain_context_num"] = tmp[2]
             continue
         if "uttrs" not in item:
             item["uttrs"] = []
@@ -161,17 +169,21 @@ def get_ic_annotation(fname, change_ic_to_original: bool):
         item_list.append(item)
     final_output = []
     for item_idx, item in enumerate(item_list):
-        removed_num, remain_num = item["removed_context_num"], item["remain_context_num"]
+        # removed_num, remain_num = item["removed_context_num"], item["remain_context_num"]
+        remain_num = item["remain_context_num"]
         uttrs = item["uttrs"]
-        assert len(uttrs) in [removed_num + remain_num + 1, removed_num + remain_num]
+        # assert len(uttrs) in [removed_num + remain_num + 1, removed_num + remain_num]
+        assert len(uttrs) == 1 + remain_num
         context = uttrs[:-1]
         response = uttrs[-1]
 
-        assert len(context) in [remain_num + removed_num, remain_num + removed_num - 1]
+        # assert len(context) in [remain_num + removed_num, remain_num + removed_num - 1]
+        assert len(context) == remain_num
         if not change_ic_to_original:
             context = context[-remain_num:]
             assert len(context) == remain_num
-
+        else:
+            raise ValueError
         context = uttr_token.join(context)
         context = context.replace(" ##", "")
         response = response.replace(" ##", "")
