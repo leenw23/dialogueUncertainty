@@ -18,22 +18,12 @@ from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.dataloader import DataLoader
 from tqdm import tqdm
-from transformers import (
-    BertConfig,
-    BertForNextSentencePrediction,
-    BertModel,
-    BertTokenizer,
-)
+from transformers import (BertConfig, BertForNextSentencePrediction, BertModel,
+                          BertTokenizer)
 
 from preprocess_dataset import get_dd_corpus
-from utils import (
-    RankerDataset,
-    dump_config,
-    get_uttr_token,
-    load_model,
-    set_random_seed,
-    write2tensorboard,
-)
+from utils import (RankerDataset, dump_config, get_uttr_token, load_model,
+                   set_random_seed, write2tensorboard)
 
 
 def main(args):
@@ -77,7 +67,9 @@ def main(args):
         final_item = {
             "prediction": prediction[1],
             "attention": attention_output,
-            "feature": [int(el) for el in train_dataset.feature[0][idx].numpy() if el != 0],
+            "feature": [
+                int(el) for el in train_dataset.feature[0][idx].numpy() if el != 0
+            ],
         }
         saver.append(final_item)
         # draw_and_save(tokenizer, final_item, args.attention_img_fname.format(idx))
@@ -127,7 +119,6 @@ def draw_and_save(tokenizer, item, save_fname):
     )
     plt.savefig(save_fname)
     plt.close("all")
-    
 
 
 if __name__ == "__main__":

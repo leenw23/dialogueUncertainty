@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 
 # pip install uncertainty-calibration
@@ -8,35 +9,27 @@ import scipy
 import torch
 import torch.nn as nn
 import transformers
+from eval_unceratinty import modeling_mcdropout_uncertainty
 from sklearn.metrics import accuracy_score, f1_score
-import json
 from tensorboardX import SummaryWriter
 from torch import Tensor
-from utils import str2bool
 from torch.nn import functional as F
 from torch.nn.modules.loss import CrossEntropyLoss
 from torch.optim.adamw import AdamW
 from torch.utils.data import DataLoader, Dataset, RandomSampler
 from torch.utils.data.dataloader import DataLoader
 from tqdm import tqdm
-from transformers import BertConfig, BertForNextSentencePrediction, BertTokenizer, BertModel
+from transformers import (BertConfig, BertForNextSentencePrediction, BertModel,
+                          BertTokenizer)
+
+from preprocess_dataset import (get_dd_corpus, get_dd_multiref_testset,
+                                get_persona_corpus)
 from selection_model import BertSelect, BertSelectAuxilary
-from preprocess_dataset import get_dd_corpus, get_dd_multiref_testset, get_persona_corpus
-from utils import (
-    recall_x_at_k,
-    RankerDataset,
-    get_uw_annotation,
-    make_corrupted_select_dataset,
-    dump_config,
-    get_nota_token,
-    get_uttr_token,
-    get_ic_annotation,
-    load_model,
-    set_random_seed,
-    write2tensorboard,
-    SelectionDataset,
-)
-from eval_unceratinty import modeling_mcdropout_uncertainty
+from utils import (RankerDataset, SelectionDataset, dump_config,
+                   get_ic_annotation, get_nota_token, get_uttr_token,
+                   get_uw_annotation, load_model,
+                   make_corrupted_select_dataset, recall_x_at_k,
+                   set_random_seed, str2bool, write2tensorboard)
 
 
 def main(args):
@@ -68,19 +61,27 @@ def main(args):
         print("usual testset")
         if args.corpus == "dd":
             txt_fname = (
-                "./data/selection/text_cand{}".format(args.retrieval_candidate_num) + "_{}.pck"
-            )
-            tensor_fname = (
-                "./data/selection/tensor_cand{}".format(args.retrieval_candidate_num) + "_{}.pck"
-            )
-            raw_dataset = get_dd_corpus("validation" if args.setname == "dev" else args.setname)
-        elif args.corpus == "persona":
-            txt_fname = (
-                "./data/selection_persona/text_cand{}".format(args.retrieval_candidate_num)
+                "./data/selection/text_cand{}".format(args.retrieval_candidate_num)
                 + "_{}.pck"
             )
             tensor_fname = (
-                "./data/selection_persona/tensor_cand{}".format(args.retrieval_candidate_num)
+                "./data/selection/tensor_cand{}".format(args.retrieval_candidate_num)
+                + "_{}.pck"
+            )
+            raw_dataset = get_dd_corpus(
+                "validation" if args.setname == "dev" else args.setname
+            )
+        elif args.corpus == "persona":
+            txt_fname = (
+                "./data/selection_persona/text_cand{}".format(
+                    args.retrieval_candidate_num
+                )
+                + "_{}.pck"
+            )
+            tensor_fname = (
+                "./data/selection_persona/tensor_cand{}".format(
+                    args.retrieval_candidate_num
+                )
                 + "_{}.pck"
             )
             raw_dataset = get_persona_corpus(args.setname)
@@ -97,7 +98,9 @@ def main(args):
         )
     else:
         assert args.corpus == "dd"
-        raw_dataset = get_dd_corpus("validation" if args.setname == "dev" else args.setname)
+        raw_dataset = get_dd_corpus(
+            "validation" if args.setname == "dev" else args.setname
+        )
         if args.is_ic:
             raw_corrupted_dataset = get_ic_annotation(
                 args.annotated_testset,
@@ -119,7 +122,8 @@ def main(args):
         if args.replace_annotated_testset_into_original:
             assert args.annotated_testset_attribute in saved_tensor_fname
             saved_tensor_fname = saved_tensor_fname.replace(
-                args.annotated_testset_attribute, args.annotated_testset_attribute + "_original_"
+                args.annotated_testset_attribute,
+                args.annotated_testset_attribute + "_original_",
             )
         print("tensor name: {}".format(saved_tensor_fname))
         corrupted_dataset = make_corrupted_select_dataset(
@@ -134,7 +138,9 @@ def main(args):
 
     total_item_list = []
     dataset_length = (
-        len(selection_dataset) if not args.use_annotated_testset else len(corrupted_dataset[0])
+        len(selection_dataset)
+        if not args.use_annotated_testset
+        else len(corrupted_dataset[0])
     )
     for idx in tqdm(range(dataset_length)):
         pred_list_for_current_context = []
@@ -145,9 +151,14 @@ def main(args):
             sample = [el[idx] for el in corrupted_dataset]
         assert len(sample) == 2 * args.retrieval_candidate_num + 1
 
-        ids = torch.stack([sample[i] for i in range(args.retrieval_candidate_num)]).to(device)
+        ids = torch.stack([sample[i] for i in range(args.retrieval_candidate_num)]).to(
+            device
+        )
         mask = torch.stack(
-            [sample[i + args.retrieval_candidate_num] for i in range(args.retrieval_candidate_num)]
+            [
+                sample[i + args.retrieval_candidate_num]
+                for i in range(args.retrieval_candidate_num)
+            ]
         ).to(device)
         prediction_list = []
         with torch.no_grad():
@@ -183,7 +194,9 @@ def main(args):
                     pred_list_for_current_context = np.mean(prediction_list, 0)
                     uncertainty_list_for_current_context = np.var(prediction_list, 0)
 
-        pred_list_for_current_context = [float(el) for el in pred_list_for_current_context]
+        pred_list_for_current_context = [
+            float(el) for el in pred_list_for_current_context
+        ]
         uncertainty_list_for_current_context = [
             float(el) for el in uncertainty_list_for_current_context
         ]
@@ -218,7 +231,10 @@ if __name__ == "__main__":
         default="./logs/select_batch12_candi10_seed{}/model",
     )
     parser.add_argument(
-        "--retrieval_candidate_num", type=int, default=10, help="1개의 정답을 포함하여 몇 개의 candidate를 줄 것인지"
+        "--retrieval_candidate_num",
+        type=int,
+        default=10,
+        help="1개의 정답을 포함하여 몇 개의 candidate를 줄 것인지",
     )
     parser.add_argument(
         "--model",
@@ -278,7 +294,9 @@ if __name__ == "__main__":
         args.exp_name = "NS-{}-".format(args.corpus) + args.exp_name
     if args.use_annotated_testset:
         if args.replace_annotated_testset_into_original:
-            args.exp_name = args.annotated_testset_attribute + "_original_" + args.exp_name
+            args.exp_name = (
+                args.annotated_testset_attribute + "_original_" + args.exp_name
+            )
         else:
             args.exp_name = args.annotated_testset_attribute + "_" + args.exp_name
         args.log_path = os.path.join(args.log_path, args.annotated_testset_attribute)

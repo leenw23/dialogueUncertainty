@@ -3,6 +3,7 @@ import os
 import pickle
 import random
 import re
+
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -37,17 +38,22 @@ def corrupt_context_wordlevel_for_auxilary(
             attention_output = [el.cpu().numpy() for el in attentions]
 
             for seq_idx, seq in enumerate(numpy_ids):
-                this_seq_attention_output = sum([sum(sum(el[seq_idx])) for el in attention_output])
+                this_seq_attention_output = sum(
+                    [sum(sum(el[seq_idx])) for el in attention_output]
+                )
                 attn_score = [
                     tmp_score
-                    if seq[tmp_idx] not in skip_token_ids and tmp_idx > context_end_indices[seq_idx]
+                    if seq[tmp_idx] not in skip_token_ids
+                    and tmp_idx > context_end_indices[seq_idx]
                     else 0.0
                     for tmp_idx, tmp_score in enumerate(this_seq_attention_output)
                 ]
 
                 sorted_score_indices = np.argsort(attn_score)[::-1]
                 selected_indices = sorted(
-                    sorted_score_indices[: int((context_end_indices[seq_idx] - 1) * corrupt_ratio)]
+                    sorted_score_indices[
+                        : int((context_end_indices[seq_idx] - 1) * corrupt_ratio)
+                    ]
                 )
                 modified_ids = numpy_ids[seq_idx].copy().tolist()
                 modified_mask = numpy_mask[seq_idx].copy().tolist()
@@ -56,14 +62,18 @@ def corrupt_context_wordlevel_for_auxilary(
                     modified_ids.append(0)
                     modified_mask.pop(0)
                     modified_mask.append(0)
-                assert len(modified_ids) == len(numpy_ids[seq_idx]) == len(modified_mask)
+                assert (
+                    len(modified_ids) == len(numpy_ids[seq_idx]) == len(modified_mask)
+                )
                 numpy_ids[seq_idx], numpy_mask[seq_idx] = modified_ids, modified_mask
             return torch.tensor(numpy_ids), torch.tensor(numpy_mask)
     else:
         for seq_idx, seq in enumerate(numpy_ids):
             selected_indices = [i + 1 for i in range(context_end_indices[seq_idx] - 1)]
             selected_indices = sorted(
-                random.sample(selected_indices, int(len(selected_indices) * corrupt_ratio))
+                random.sample(
+                    selected_indices, int(len(selected_indices) * corrupt_ratio)
+                )
             )
             modified_ids = numpy_ids[seq_idx].copy().tolist()
             modified_mask = numpy_mask[seq_idx].copy().tolist()
@@ -325,7 +335,9 @@ def get_uw_annotation_legacy(
                 except:
                     error_case = True
                     break
-                context = context.replace(chd, org).replace(chd[0].upper() + chd[1:], org)
+                context = context.replace(chd, org).replace(
+                    chd[0].upper() + chd[1:], org
+                )
         if not error_case:
             final_output.append([context, response])
 
@@ -423,7 +435,9 @@ class SelectionDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         return tuple([el[idx] for el in self.feature])
 
-    def _tensorize_selection_dataset(self, selection_dataset, tensor_save_fname, num_candidate):
+    def _tensorize_selection_dataset(
+        self, selection_dataset, tensor_save_fname, num_candidate
+    ):
         if os.path.exists(tensor_save_fname):
             print(f"{tensor_save_fname} exist!")
             with open(tensor_save_fname, "rb") as f:
@@ -434,7 +448,9 @@ class SelectionDataset(torch.utils.data.Dataset):
         labels = []
         print("Tensorize...")
         for sample_idx, sample in enumerate(tqdm(selection_dataset)):
-            assert len(sample) == 1 + num_candidate and all([isinstance(el, str) for el in sample])
+            assert len(sample) == 1 + num_candidate and all(
+                [isinstance(el, str) for el in sample]
+            )
             context, candidates = sample[0], sample[1:]
             assert len(candidates) == num_candidate
 
@@ -493,12 +509,16 @@ class SelectionDataset(torch.utils.data.Dataset):
             pickle.dump(selection_dataset, f)
         return selection_dataset
 
-    def _make_selection_dataset(self, raw_dataset, num_candidate, corrupted_context_dataset):
+    def _make_selection_dataset(
+        self, raw_dataset, num_candidate, corrupted_context_dataset
+    ):
         """num_candidate개의 response candidate를 가진 샘플들을 만들어서 반환.
         Returns:
             datset: List of [context(str), positive_response(str), negative_response_1(str), (...) negative_response_(num_candidate-1)(str)]
         """
-        assert isinstance(raw_dataset, list) and all([isinstance(el, list) for el in raw_dataset])
+        assert isinstance(raw_dataset, list) and all(
+            [isinstance(el, list) for el in raw_dataset]
+        )
         print(f"Serialized selection not exist. Make new file...")
         dataset = []
         all_responses = []
@@ -506,7 +526,9 @@ class SelectionDataset(torch.utils.data.Dataset):
             slided_conversation = self._slide_conversation(conv)
             # Check the max sequence length
             for single_conv in slided_conversation:
-                assert len(single_conv) == 2 and all([isinstance(el, str) for el in single_conv])
+                assert len(single_conv) == 2 and all(
+                    [isinstance(el, str) for el in single_conv]
+                )
                 concat_single_conv = " ".join(single_conv)
                 if len(self.tokenizer.tokenize(concat_single_conv)) + 3 <= 300:
                     dataset.append(single_conv)
@@ -519,7 +541,9 @@ class SelectionDataset(torch.utils.data.Dataset):
                 corrupted_context_dataset, int(len(dataset) / 2)
             )
             for corrupted_sample in tqdm(half_sampled_corrupt_sample):
-                changed_context = self.tokenizer.decode(corrupted_sample["changed_context"]).strip()
+                changed_context = self.tokenizer.decode(
+                    corrupted_sample["changed_context"]
+                ).strip()
                 assert isinstance(changed_context, str)
                 assert "[CLS]" == changed_context[:5]
                 assert "[SEP]" == changed_context[-5:]
@@ -549,7 +573,9 @@ class SelectionDataset(torch.utils.data.Dataset):
         """
         multi-turn utterance로 이루어진 single conversation을 여러 개의 "context-response" pair로 만들어 반환
         """
-        assert isinstance(conversation, list) and all([isinstance(el, str) for el in conversation])
+        assert isinstance(conversation, list) and all(
+            [isinstance(el, str) for el in conversation]
+        )
         pairs = []
         for idx in range(len(conversation) - 1):
             context, response = conversation[: idx + 1], conversation[idx + 1]
@@ -651,7 +677,9 @@ class RankerDataset(torch.utils.data.Dataset):
         """
         List of List of utterance인 raw_dataset을 받아서 (context, positive_response, negative_response (random)) 들의 리스트를 만들어서 반환
         """
-        assert isinstance(raw_dataset, list) and all([isinstance(el, list) for el in raw_dataset])
+        assert isinstance(raw_dataset, list) and all(
+            [isinstance(el, list) for el in raw_dataset]
+        )
         print(f"{self.triplet_fname} not exist. Make new file...")
         dataset = []
         all_responses = []
@@ -659,7 +687,9 @@ class RankerDataset(torch.utils.data.Dataset):
             slided_conversation = self._slide_conversation(conv)
             # Check the max sequence length
             for single_conv in slided_conversation:
-                assert len(single_conv) == 2 and all([isinstance(el, str) for el in single_conv])
+                assert len(single_conv) == 2 and all(
+                    [isinstance(el, str) for el in single_conv]
+                )
                 concat_single_conv = " ".join(single_conv)
                 if len(self.tokenizer.tokenize(concat_single_conv)) + 3 <= 300:
                     dataset.append(single_conv)
@@ -676,7 +706,9 @@ class RankerDataset(torch.utils.data.Dataset):
         """
         multi-turn utterance로 이루어진 single conversation을 여러 개의 "context-response" pair로 만들어 반환
         """
-        assert isinstance(conversation, list) and all([isinstance(el, str) for el in conversation])
+        assert isinstance(conversation, list) and all(
+            [isinstance(el, str) for el in conversation]
+        )
         pairs = []
         for idx in range(len(conversation) - 1):
             context, response = conversation[: idx + 1], conversation[idx + 1]

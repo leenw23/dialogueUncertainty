@@ -1,7 +1,7 @@
 import argparse
 import os
-
 import pickle
+
 import numpy as np
 import scipy
 import torch
@@ -17,18 +17,11 @@ from torch.utils.data.dataloader import DataLoader
 from tqdm import tqdm
 from transformers import BertConfig, BertModel, BertTokenizer
 
-from selection_model import BertSelect
 from preprocess_dataset import get_dd_corpus
-from utils import (
-    RankerDataset,
-    dump_config,
-    get_uttr_token,
-    load_model,
-    save_model,
-    set_random_seed,
-    SelectionDataset,
-    write2tensorboard,
-)
+from selection_model import BertSelect
+from utils import (RankerDataset, SelectionDataset, dump_config,
+                   get_uttr_token, load_model, save_model, set_random_seed,
+                   write2tensorboard)
 
 
 def main(args):
@@ -73,7 +66,8 @@ def main(args):
         args.retrieval_candidate_num,
         UTTR_TOKEN,
         "./data/selection/text_cand{}".format(args.retrieval_candidate_num) + "_{}.pck",
-        "./data/selection/tensor_cand{}".format(args.retrieval_candidate_num) + "_{}.pck",
+        "./data/selection/tensor_cand{}".format(args.retrieval_candidate_num)
+        + "_{}.pck",
         corrupted_context_dataset=unk_train_dump,
     )
 
@@ -85,7 +79,8 @@ def main(args):
         args.retrieval_candidate_num,
         UTTR_TOKEN,
         "./data/selection/text_cand{}".format(args.retrieval_candidate_num) + "_{}.pck",
-        "./data/selection/tensor_cand{}".format(args.retrieval_candidate_num) + "_{}.pck",
+        "./data/selection/tensor_cand{}".format(args.retrieval_candidate_num)
+        + "_{}.pck",
         corrupted_context_dataset=unk_dev_dump,
     )
     print("Load end!")
@@ -123,10 +118,14 @@ def main(args):
             label = label.to(device)
             bs = label.shape[0]
             ids_list = (
-                torch.cat(ids_list, 1).reshape(bs * args.retrieval_candidate_num, 300).to(device)
+                torch.cat(ids_list, 1)
+                .reshape(bs * args.retrieval_candidate_num, 300)
+                .to(device)
             )
             mask_list = (
-                torch.cat(mask_list, 1).reshape(bs * args.retrieval_candidate_num, 300).to(device)
+                torch.cat(mask_list, 1)
+                .reshape(bs * args.retrieval_candidate_num, 300)
+                .to(device)
             )
 
             output = model(ids_list, mask_list)
@@ -146,7 +145,10 @@ def main(args):
                 for step, batch in enumerate(tqdm(validloader)):
                     ids_list, mask_list, label = (
                         batch[: args.retrieval_candidate_num],
-                        batch[args.retrieval_candidate_num : 2 * args.retrieval_candidate_num],
+                        batch[
+                            args.retrieval_candidate_num : 2
+                            * args.retrieval_candidate_num
+                        ],
                         batch[2 * args.retrieval_candidate_num],
                     )
                     label = label.to(device)
@@ -186,13 +188,21 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, default=2e-5)
     parser.add_argument("--epoch", type=int, default=3)
     parser.add_argument(
-        "--retrieval_candidate_num", type=int, default=10, help="1개의 정답을 포함하여 몇 개의 candidate를 줄 것인지"
+        "--retrieval_candidate_num",
+        type=int,
+        default=10,
+        help="1개의 정답을 포함하여 몇 개의 candidate를 줄 것인지",
     )
     parser.add_argument(
-        "--uw_unk_ratio", type=float, default=0.0, choices=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
+        "--uw_unk_ratio",
+        type=float,
+        default=0.0,
+        choices=[0.0, 0.1, 0.2, 0.3, 0.4, 0.5],
     )
     parser.add_argument(
-        "--uw_unk_dump_fname", type=str, default="./attention/UW_attention_change{}_{}.pck"
+        "--uw_unk_dump_fname",
+        type=str,
+        default="./attention/UW_attention_change{}_{}.pck",
     )
     parser.add_argument(
         "--random_initialization", type=str, default="False", choices=["True", "False"]

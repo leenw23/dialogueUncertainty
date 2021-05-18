@@ -28,7 +28,9 @@ class BertSelectAuxilary(nn.Module):
         self.linear = torch.nn.Linear(768, 1, bias=False)
         self.auxlinear = torch.nn.Linear(768, 1, bias=False)
 
-    def forward(self, ids, mask, aux_org_ids, aux_org_mask, aux_corrupt_ids, aux_corrupt_mask):
+    def forward(
+        self, ids, mask, aux_org_ids, aux_org_mask, aux_corrupt_ids, aux_corrupt_mask
+    ):
         output, _ = self.bert(ids, mask, return_dict=False)
         cls_ = output[:, 0]
         selection_output = self.linear(cls_)
@@ -38,7 +40,9 @@ class BertSelectAuxilary(nn.Module):
         aux_org_linear_output = self.auxlinear(org_cls_)
         aux_org_output = torch.sigmoid(aux_org_linear_output)
 
-        corrupt_output, _ = self.bert(aux_corrupt_ids, aux_corrupt_mask, return_dict=False)
+        corrupt_output, _ = self.bert(
+            aux_corrupt_ids, aux_corrupt_mask, return_dict=False
+        )
         corrupt_cls_ = corrupt_output[:, 0]
         aux_corrupt_linear_output = self.auxlinear(corrupt_cls_)
         aux_corrupt_output = torch.sigmoid(aux_corrupt_linear_output)

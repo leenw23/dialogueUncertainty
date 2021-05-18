@@ -1,12 +1,15 @@
-import json, pickle
-from utils import recall_x_at_k, brier_multi
-import numpy as np
-from sklearn.metrics import f1_score, confusion_matrix, brier_score_loss
-from sklearn.metrics import precision_recall_fscore_support as score_metric
+import json
 import os
+import pickle
 from pprint import pprint
-import calibration as cal
 from string import ascii_uppercase
+
+import calibration as cal
+import numpy as np
+from sklearn.metrics import brier_score_loss, confusion_matrix, f1_score
+from sklearn.metrics import precision_recall_fscore_support as score_metric
+
+from utils import brier_multi, recall_x_at_k
 
 
 def main_script(dirname):
@@ -87,7 +90,8 @@ def main(fname):
 
     r10 = run_origianl_recall(prediction_data, 10)
     calibration_error = cal.get_ece(
-        [softmax_np(l["pred"]) for l in prediction_data], [0 for _ in range(len(prediction_data))]
+        [softmax_np(l["pred"]) for l in prediction_data],
+        [0 for _ in range(len(prediction_data))],
     )
     brier_score = brier_multi(
         [[1] + [0 for _ in range(9)] for __ in range(len(prediction_data))],
