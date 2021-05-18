@@ -224,7 +224,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process some integers.")
     parser.add_argument("--corpus", default="dd", choices=["persona", "dd"])
     parser.add_argument("--setname", default="dev", choices=["dev", "test"])
-    parser.add_argument("--log_path", type=str, default="0513_result")
+    parser.add_argument("--log_path", type=str, default="result_dir")
     parser.add_argument(
         "--model_path",
         type=str,
@@ -234,7 +234,6 @@ if __name__ == "__main__":
         "--retrieval_candidate_num",
         type=int,
         default=10,
-        help="1개의 정답을 포함하여 몇 개의 candidate를 줄 것인지",
     )
     parser.add_argument(
         "--model",
