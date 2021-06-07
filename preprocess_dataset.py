@@ -38,7 +38,7 @@ def download_dailydialog(daily_output_dir: str):
 
 def _read_txt_files(fname: str):
     assert os.path.exists(fname)
-    with open(fname, "r") as f:
+    with open(fname, "r", encoding='UTF8') as f:
         ls = [el.strip().split("|||") for el in f.readlines()]
     return ls
 
@@ -47,7 +47,7 @@ def get_dd_corpus(setname):
     assert setname in ["train", "validation", "test"]
     fname = "./data/ijcnlp_dailydialog/{}/dialogues_{}.txt".format(setname, setname)
     assert os.path.exists(fname)
-    with open(fname, "r") as f:
+    with open(fname, "r", encoding='UTF8') as f:
         ls = [el.strip() for el in f.readlines()]
         for idx, line in enumerate(ls):
             line = [
@@ -63,7 +63,7 @@ def get_persona_corpus(setname):
         setname = "valid"
     fname = "./data/personachat/persona_{}.txt".format(setname)
     assert os.path.exists(fname)
-    with open(fname, "r") as f:
+    with open(fname, "r", encoding='UTF8') as f:
         ls = [el.strip() for el in f.readlines()]
         for idx, line in enumerate(ls):
             line = [
@@ -84,7 +84,7 @@ def get_dd_multiref_testset(dirname="./data/"):
         URL = "https://github.com/prakharguptaz/multirefeval/raw/master/multiref-dataset/multireftest.json"
         wget.download(URL, out=os.path.join(dirname, "multireftest.json"))
     data = []
-    with open(os.path.join(dirname, "multireftest.json"), "r") as f:
+    with open(os.path.join(dirname, "multireftest.json"), "r", encoding='UTF8') as f:
         for line in f.readlines():
             line = json.loads(line)
             assert line["fold"] == "test"
